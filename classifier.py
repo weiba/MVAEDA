@@ -15,7 +15,7 @@ from itertools import chain
 from collections import defaultdict
 from torch_geometric import data as DATA
 from tools.model import *
-from sklearn.metrics import accuracy_score, f1_score, auc, precision_recall_curve, average_precision_score, roc_auc_score
+from sklearn.metrics import accuracy_score, f1_score, auc, precision_recall_curve, average_precision_score, roc_auc_score, matthews_corrcoef,precision_score,recall_score
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('use device:', device)
 
@@ -36,14 +36,20 @@ def fine_tune(Data, encoder, classifymodel, optimizer, scheduler, drug_folder, k
         'AUC': 0,
         'AUPRC': 0,
         'F1': 0,
-        'Accuracy': 0
+        'Accuracy': 0,
+        'MCC': 0,
+        "Precision": 0,
+        'Recall': 0,
     }
     best_test_metrics = {
         'EPOCH': 0,
         'AUC': 0,
         'AUPRC': 0,
         'F1': 0,
-        'Accuracy': 0
+        'Accuracy': 0,
+        'MCC': 0,
+        "Precision": 0,
+        'Recall': 0,
     }
     source_train_data, source_test_data, target_data = Data[0], Data[1], Data[2]
     
@@ -94,12 +100,18 @@ def fine_tune(Data, encoder, classifymodel, optimizer, scheduler, drug_folder, k
             # eval_auprc = auprc(eval_y_true, eval_y_pred)
             eval_f1 = f1_score(eval_y_true, (eval_y_pred > 0.5).astype('int'))
             eval_acc = accuracy_score(eval_y_true, (eval_y_pred > 0.5).astype('int'))
+            eval_mcc = matthews_corrcoef(eval_y_true,(eval_y_pred > 0.5).astype('int'))
+            eval_Precision = precision_score(eval_y_true, (eval_y_pred > 0.5).astype('int'),zero_division=1)
+            eval_Recall = recall_score(eval_y_true, (eval_y_pred > 0.5).astype('int'))
             eval_metrics = {
                 'EPOCH:': epoch,
                 'AUC': eval_auc,
                 'AUPRC': eval_auprc,
                 'F1': eval_f1,
-                'Accuracy': eval_acc
+                'Accuracy': eval_acc,
+                'MCC': eval_mcc,
+                'Precision': eval_Precision,
+                'Recall': eval_Recall,
             }
             append_file(eval_log_name, eval_metrics)
             test_auc = roc_auc_score(test_y_true, test_y_pred)
@@ -107,12 +119,18 @@ def fine_tune(Data, encoder, classifymodel, optimizer, scheduler, drug_folder, k
             # test_auprc = auprc(test_y_true, test_y_pred)
             test_f1 = f1_score(test_y_true, (test_y_pred > 0.5).astype('int'))
             test_acc = accuracy_score(test_y_true, (test_y_pred > 0.5).astype('int'))
+            test_mcc = matthews_corrcoef(test_y_true,(test_y_pred > 0.5).astype('int'))
+            test_Precision = precision_score(test_y_true, (test_y_pred > 0.5).astype('int'),zero_division=1)
+            test_Recall = recall_score(test_y_true, (test_y_pred > 0.5).astype('int'))
             test_metrics = {
                 'EPOCH:': epoch,
                 'AUC': test_auc,
                 'AUPRC': test_auprc,
                 'F1': test_f1,
-                'Accuracy': test_acc
+                'Accuracy': test_acc,
+                'MCC': test_mcc,
+                'Precision': test_Precision,
+                'Recall': test_Recall,
             }
             append_file(test_log_name, test_metrics)
             # early stop
@@ -167,7 +185,10 @@ def classifier_finetune(parent_folder, drug_list, datatype, outfolder, resultnam
     all_metrics =  {}
     for drug in drug_list:
         all_metrics.update({drug+'auc':0, drug+'AUPRC':0, drug+'folder':None})
-    best_df = pd.DataFrame(index=drug_list, columns=['auc', 'aucvar', 'auprc', 'auprcvar'])
+    best_df = pd.DataFrame(index=drug_list, columns=['auc', 'aucvar', 'auprc', 'auprcvar',
+                            'F1', 'F1var', 'ACC', 'ACCvar',
+                            'MCC', 'MCCvar', 'Precision', 'Precisionvar',
+                            'Recall', 'Recallvar'])
     for fine_tune_dict in fine_tune_dict_list:
         for param in update_params_dict_list:
             for drug in drug_list:
@@ -192,6 +213,11 @@ def classifier_finetune(parent_folder, drug_list, datatype, outfolder, resultnam
                 i = 0  # fold num
                 addauc = []
                 addauprc = []
+                addF1 = []
+                addACC = []
+                addMCC = []
+                addPRE = []
+                addrecall = []
                 for data in data_generator:
                     temp_folder = os.path.join(drug_auc_folder,"ftepoch"+str(param['train_num_epochs'])+"_lr_"+str(fine_tune_dict['ftlr'])+"_CosAL_"+str(fine_tune_dict['scheduler_flag']))
                     log_folder = os.path.join(temp_folder, 'log')
@@ -216,10 +242,21 @@ def classifier_finetune(parent_folder, drug_list, datatype, outfolder, resultnam
                     test_auc_list.append(test_history)
                     addauc.append(test_history['AUC'])
                     addauprc.append(test_history['AUPRC'])
+                    addF1.append(test_history['F1'])
+                    addACC.append(test_history['Accuracy'])
+                    addMCC.append(test_history['MCC'])
+                    addPRE.append(test_history['Precision'])
+                    addrecall.append(test_history['Recall'])
                     i=i+1
                     if i==5:
                         meanauc = sum(addauc)/len(addauc)
                         meanauprc = sum(addauprc)/len(addauprc)
+                        meanF1 = sum(addF1)/len(addF1)
+                        meanACC = sum(addACC)/len(addACC)
+                        meanMCC = sum(addMCC)/len(addMCC)
+                        meanPRE = sum(addPRE)/len(addPRE)
+                        meanrecall = sum(addrecall)/len(addrecall)
+                        
                         if meanauc > all_metrics[drug+'auc']:
                             all_metrics[drug+'auc'] = meanauc
                             all_metrics[drug+'AUPRC'] = meanauprc
@@ -228,6 +265,16 @@ def classifier_finetune(parent_folder, drug_list, datatype, outfolder, resultnam
                             best_df.at[drug, 'auprc'] = meanauprc
                             best_df.at[drug, 'aucvar'] = np.var(addauc)
                             best_df.at[drug, 'auprcvar'] = np.var(addauprc)
+                            best_df.at[drug, 'F1'] = meanF1
+                            best_df.at[drug, 'ACC'] = meanACC
+                            best_df.at[drug, 'F1var'] = np.var(addF1)
+                            best_df.at[drug, 'ACCvar'] = np.var(addACC)
+                            best_df.at[drug, 'MCC'] = meanMCC
+                            best_df.at[drug, 'Precision'] = meanPRE
+                            best_df.at[drug, 'MCCvar'] = np.var(addMCC)
+                            best_df.at[drug, 'Precisionvar'] = np.var(addPRE)
+                            best_df.at[drug, 'Recall'] = meanrecall
+                            best_df.at[drug, 'Recallvar'] = np.var(addrecall)
                         print('pretrain mean auc:', sum(addauc)/len(addauc))
                         with open(test_auc_log_name,'w') as f:
                             for item in test_auc_list:
@@ -249,14 +296,18 @@ def main_train_classifier(i):
             pdtc_drug_file = pd.read_csv(os.path.join('data', 'pdtc_gdsc_drug_mapping.csv'), index_col=0)
             drug_list = pdtc_drug_file.index.tolist()
             classifier_metrics = classifier_finetune(pretrain_model, drug_list, dataset, outfolder, 'PDTC_'+outname)
-            classifier_file_path = 'PDTC_mask_time'+str(i)+'.txt'
-            with open(classifier_file_path, "w") as file:
+            classifier_file_path = './time_txt/pdtc'
+            safemakedirs(classifier_file_path)
+            classifier_file = './time_txt/pdtc/PDTC_mask_time'+str(i)+'.txt'
+            with open(classifier_file, "w") as file:
                 file.write(json.dumps(classifier_metrics))
         elif  dataset == 'TCGA':
             drug_list = ['cis', 'sor', 'tem', 'gem', 'fu']
             classifier_metrics = classifier_finetune(pretrain_model, drug_list, dataset, outfolder, 'TCGA_'+outname)
-            classifier_file_path = 'tcga_mask_time'+str(i)+'.txt'
-            with open(classifier_file_path, "w") as file:
+            classifier_file_path = './time_txt/tcga'
+            safemakedirs(classifier_file_path)
+            classifier_file = './time_txt/tcga/tcga_mask_time'+str(i)+'.txt'
+            with open(classifier_file, "w") as file:
                 file.write(json.dumps(classifier_metrics))
 
 if __name__ == '__main__':
@@ -276,19 +327,24 @@ if __name__ == '__main__':
                 pdtc_drug_file = pd.read_csv(os.path.join('data', 'pdtc_gdsc_drug_mapping.csv'), index_col=0)
                 drug_list = pdtc_drug_file.index.tolist()
                 classifier_metrics = classifier_finetune(args.pretrain_model, drug_list, args.dataset, args.outfolder, 'PDTC_'+args.outname)
-                classifier_file_path = 'pdtc_time'+str(i)+'.txt'
-                with open(classifier_file_path, "w") as file:
+                classifier_file_path = './time_txt/pdtc'
+                safemakedirs(classifier_file_path)
+                classifier_file = './time_txt/pdtc/PDTC_mask_time'+str(i)+'.txt'
+                with open(classifier_file, "w") as file:
                     file.write(json.dumps(classifier_metrics))
             elif args.dataset == 'TCGA':
                 drug_list = ['cis', 'sor', 'tem', 'gem', 'fu']
                 classifier_metrics = classifier_finetune(args.pretrain_model, drug_list, args.dataset, args.outfolder, 'TCGA_'+args.outname)
-                classifier_file_path = 'tcga_time'+str(i)+'.txt'
-                with open(classifier_file_path, "w") as file:
+                classifier_file_path = './time_txt/tcga'
+                safemakedirs(classifier_file_path)
+                classifier_file = './time_txt/tcga/tcga_mask_time'+str(i)+'.txt'
+                with open(classifier_file, "w") as file:
                     file.write(json.dumps(classifier_metrics))
         elif args.dataset == 'other':
             drug_file = pd.read_csv(args.drug, index_col=0)
-            drug_list = drug_file.index.tolist()
+            # drug_list = drug_file.index.tolist()
             classifier_metrics = classifier_finetune(args.pretrain_model, drug_list, args.dataset, args.outfolder, 'other_'+args.outname, args.data)
             classifier_file_path = 'other_time'+str(i)+'.txt'
             with open(classifier_file_path, "w") as file:
                 file.write(json.dumps(classifier_metrics))
+# nohup python -u /home/chengong/code/MVAEDA_yijian_gai/classifier.py > output_classifier_0105-2_sigmoid.log 2>&1 &

@@ -17,17 +17,17 @@ All implementations of MVAEDA are based on PyTorch. MVAEDA requires the followin
     - data/TCGA records training data, test data, and labeling related to the five drugs associated with TCGA.
     - data/PDTC records training data, test data, and labeling related to the fifty drugs associated with PDTC.
     - data/ccle_sample_info.csv records biological information related to CCLE samples.
-    - data/pretrain_ccle.csv records gene expression data from unlabeled CCLE samples.
-    - data/pretrain_tcga.csv records gene expression data from unlabeled TCGA samples.
+    - data/pretrain_ccle.csv records gene expression data from unlabeled CCLE samples.  Due to data storage limitations when uploading to Githup, we compress pretrain_ccle.csv into a compressed package. You can use a decompression tool to decompress the complete file when using it.
+    - data/pretrain_tcga.csv records gene expression data from unlabeled TCGA samples. Due to data storage limitations when uploading to Githup, we compressed and uploaded pretrain_tcga.csv in separate volumes. When using them, you can use the decompression tool, which will automatically identify all the sub-volumes and merge them into a complete file.
     - data/pdtc_uq1000_feature.csv records gene expression data from unlabeled PDTC samples.
-    - data/GDSC1_fitted_dose_response_25Feb20.csv and data/GDSC2_fitted_dose_response_25Feb20.csv records data on drug use and response in GDSC samples.
+    - data/GDSC1_fitted_dose_response_25Feb20.csv and data/GDSC2_fitted_dose_response_25Feb20.csv records data on drug use and response in GDSC samples. Due to data storage limitations when uploading to Githup, we compress GDSC1_fitted_dose_response_25Feb20.csv into a compressed package. You can use a decompression tool to decompress the complete file when using it.
     - data/DrugResponsesAUCModels.txt records response data for PDTC sample-drug pairs. 
-    - data/pdtc_gdsc_drug_mapping.csv records the 50 drug names associated with pdtc and their smiles.
-    - data/uq1000_feature.csv records gene expression data for unlabeled TCGA samples and CCLE samples.
+    - data/pdtc_gdsc_drug_mapping.csv records the 50 drug names associated with pdtc and their smiles. 
+    - data/uq1000_feature.csv records gene expression data for unlabeled TCGA samples and CCLE samples. Due to data storage limitations when uploading to Githup, we compressed and uploaded pdtc_gdsc_drug_mapping.csv in separate volumes. When using them, you can use the decompression tool, which will automatically identify all the sub-volumes and merge them into a complete file.
     - data/xena_sample_info_df.csv records biological information related to TCGA samples.
 - tools/model.py defines the model used in the training process.
 - data.py defines the data loading of the model.
-- pretrain_mask_vae.py defines the pre-training of the model.
+- pretrain_mask_vae.py defines the training of the domain invariant feature extraction phase of the model.
 - classifier.py defines the classifier training of the model.
 
 ## Preprocessing your own data

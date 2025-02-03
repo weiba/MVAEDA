@@ -83,11 +83,11 @@ def train_discrim(s_batch, t_batch, shared_encoder, sencoder,tencoder, discrim, 
     s_batch_mask,smask = apply_noise(s_batch)
     t_batch_mask,tmask = apply_noise(t_batch)
     # pvae
-    pzs,_ = sencoder.loss_mask(s_batch_mask, smask)
-    pzt,_ = tencoder.loss_mask(t_batch_mask, tmask)
+    pzs,_ = sencoder.loss_mask(s_batch, s_batch_mask, smask)
+    pzt,_ = tencoder.loss_mask(t_batch, t_batch_mask, tmask)
     # vae
-    zs,_ = shared_encoder.loss_mask(s_batch, smask)
-    zt,_ = shared_encoder.loss_mask(t_batch, tmask)
+    zs,_ = shared_encoder.loss_mask(s_batch, s_batch_mask, smask)
+    zt,_ = shared_encoder.loss_mask(t_batch, t_batch_mask, tmask)
     # F.normalize(latent_code, p=2, dim=1)
     s = torch.cat((zs, pzs), dim=1)
     t = torch.cat((zt, pzt), dim=1)
@@ -122,12 +122,12 @@ def train_d_ae(s_batch, t_batch, shared_encoder, sencoder, tencoder, discrim,  o
     s_batch_mask, smask = apply_noise(s_batch)
     t_batch_mask, tmask = apply_noise(t_batch)
     # private
-    pccle_z,pccle_vae_loss  = sencoder.loss_mask(s_batch_mask, smask)
-    ptcga_z,ptcga_vae_loss  = tencoder.loss_mask(t_batch_mask, tmask)
+    pccle_z,pccle_vae_loss  = sencoder.loss_mask(s_batch, s_batch_mask, smask)
+    ptcga_z,ptcga_vae_loss  = tencoder.loss_mask(t_batch, t_batch_mask, tmask)
 
     # shared
-    ccle_z, ccle_vae_loss = shared_encoder.loss_mask(s_batch_mask, smask)
-    tcga_z, tcga_vae_loss = shared_encoder.loss_mask(t_batch_mask, tmask)
+    ccle_z, ccle_vae_loss = shared_encoder.loss_mask(s_batch, s_batch_mask, smask)
+    tcga_z, tcga_vae_loss = shared_encoder.loss_mask(t_batch, t_batch_mask, tmask)
     # vaeloss
     pvae_loss = pccle_vae_loss+ptcga_vae_loss
     vae_loss = ccle_vae_loss + tcga_vae_loss
@@ -204,15 +204,15 @@ def pretrain_mask_vae(sourcedata, targetdata, param, parent_folder, times):
                 ccledata_nomask = ccledata_nomask[0]
                 tcgadata_nomask = tcgadata_nomask[0]
 
-                # mask
+                # 加个掩码过程
                 ccledata,ccleaddmask = apply_noise(ccledata_nomask)
                 tcgadata,tcgaaddmask = apply_noise(tcgadata_nomask)
 
-                pccle_z, pccle_vae_loss = source_private_vae.loss_mask(ccledata, ccleaddmask)
-                ptcga_z, ptcga_vae_loss = target_private_vae.loss_mask(tcgadata, tcgaaddmask)
+                pccle_z, pccle_vae_loss = source_private_vae.loss_mask(ccledata_nomask, ccledata, ccleaddmask)
+                ptcga_z, ptcga_vae_loss = target_private_vae.loss_mask(tcgadata_nomask, tcgadata, tcgaaddmask)
 
-                ccle_z, ccle_vae_loss = shared_vae.loss_mask(ccledata, ccleaddmask)
-                tcga_z, tcga_vae_loss = shared_vae.loss_mask(tcgadata, tcgaaddmask)
+                ccle_z, ccle_vae_loss = shared_vae.loss_mask(ccledata_nomask, ccledata, ccleaddmask)
+                tcga_z, tcga_vae_loss = shared_vae.loss_mask(tcgadata_nomask, tcgadata, tcgaaddmask)
 
                 p_vae_loss = pccle_vae_loss + ptcga_vae_loss
                 vae_loss = ccle_vae_loss + tcga_vae_loss
@@ -241,11 +241,11 @@ def pretrain_mask_vae(sourcedata, targetdata, param, parent_folder, times):
                 sourcetest, sourcetestmask = apply_noise(sourcetest_nomask)
                 targettest, targettestmask = apply_noise(targettest_nomask)
 
-                pccle_z, pccle_vae_loss = source_private_vae.loss_mask(sourcetest, sourcetestmask)
-                ptcga_z, ptcga_vae_loss = target_private_vae.loss_mask(targettest, targettestmask)
+                pccle_z, pccle_vae_loss = source_private_vae.loss_mask(sourcetest_nomask, sourcetest, sourcetestmask)
+                ptcga_z, ptcga_vae_loss = target_private_vae.loss_mask(targettest_nomask, targettest, targettestmask)
 
-                ccle_z, ccle_vae_loss = shared_vae.loss_mask(sourcetest, sourcetestmask)
-                tcga_z, tcga_vae_loss = shared_vae.loss_mask(targettest, targettestmask)
+                ccle_z, ccle_vae_loss = shared_vae.loss_mask(sourcetest_nomask, sourcetest, sourcetestmask)
+                tcga_z, tcga_vae_loss = shared_vae.loss_mask(targettest_nomask, targettest, targettestmask)
 
                 # eval vae loss
                 eval_vae_loss = ccle_vae_loss + tcga_vae_loss
@@ -259,7 +259,7 @@ def pretrain_mask_vae(sourcedata, targetdata, param, parent_folder, times):
                     "VAE_loss": eval_vae_loss
                 })
                 append_file(evalloss_logfile, evalloss_logdict)
-                
+                # 早停
                 evalloss = eval_oloss + eval_pvae_loss + eval_vae_loss
                 if evalloss < min_loss:
                     min_loss = evalloss
@@ -389,7 +389,7 @@ def main_pretrain(i):
 if __name__ == '__main__':
     for i in range(0,10):
         parser = argparse.ArgumentParser('pretrain_mask_vae')
-        parser.add_argument('--outfolder', dest='outfolder', default='./vae_mask_result/vae_mask_pretrain-1/pretrain_mask'+str(i), type=str, help='choose the output folder')
+        parser.add_argument('--outfolder', dest='outfolder', default='./vae_mask_result/vae_mask_pretrain/pretrain_mask'+str(i), type=str, help='choose the output folder')
         parser.add_argument('--source', dest='source', default=None, type=str, help='.csv file address for the source')
         parser.add_argument('--target', dest='target', default=None, type=str, help='.csv file address for the target')
         args = parser.parse_args()
@@ -425,4 +425,4 @@ if __name__ == '__main__':
             sourcepretrain, targetpretrain = pretrain_data()
             for param_dict in update_params_dict_list:
                 pretrain_mask_vae(sourcepretrain, targetpretrain, param=param_dict, parent_folder=args.outfolder, times = i)
-
+# nohup python -u /home/chengong/code/MVAEDA/pretrain_mask_vae.py > output_pretrain_mask_vae_0812.log 2>&1 &
