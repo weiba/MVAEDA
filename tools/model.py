@@ -15,11 +15,12 @@ class Classify(nn.Module):
             nn.BatchNorm1d(10),
             nn.ReLU(),
             nn.Linear(10, 1),
-            # nn.Sigmoid()
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         return (self.net(x)).view(-1)
+
 
 class Discriminator(nn.Module):
     def __init__(self, input_dim):
@@ -65,9 +66,11 @@ class VAE_mask(torch.nn.Module):
         super(VAE_mask, self).__init__()
         self.encoder = VAE_Encoder(input_size, hidden_size, latent_size)
         self.decoder_mask = VAE_Decoder(latent_size+input_size, hidden_size, output_size)
+        
         self.decoder = VAE_Decoder(latent_size, hidden_size, output_size)
         self.mask_predictor = nn.Linear(latent_size, input_size)
-        # self.decoder1 = VAE_Decoder(64, 128, 1426)
+        self.mask_encoder = VAE_Encoder(input_size, hidden_size, latent_size)
+
 
     def encode(self, x):
         mu, sigma = self.encoder(x)  # mu,sigma: bs,latent_size
@@ -86,18 +89,19 @@ class VAE_mask(torch.nn.Module):
         mask_loss = mask_loss_weight * bce_logits(predicted_mask, mask, reduction='mean')
         return z, mask_loss
 
-    def loss_mask(self, x, mask):
+    def loss_mask(self,y_x, x, mask):
         mu,sigma = self.encoder(x) #mu,sigma: bs,latent_size
         std = torch.exp(0.5 * sigma)
         eps = torch.randn_like(std)  #eps: bs,latent_size
         z = mu + eps*sigma  #z: bs,latent_size
         predicted_mask = self.mask_predictor(z)
-        re_x = self.decoder_mask(torch.cat([z, predicted_mask], dim=1))
+
+        re_x = self.decoder_mask(torch.cat([z, predicted_mask], dim=1)) # yuan
 
         masked_data_weight = 0.75
         mask_loss_weight = 0.7
         w_nums = mask * masked_data_weight + (1 - mask) * (1 - masked_data_weight)
-        recon_loss = (1 - mask_loss_weight) * torch.mul(w_nums, mse(re_x, x, reduction='none'))
+        recon_loss = (1 - mask_loss_weight) * torch.mul(w_nums, mse(re_x, y_x, reduction='none'))
         mask_loss = mask_loss_weight * bce_logits(predicted_mask, mask, reduction='mean')
         recon_loss = recon_loss.mean()
         # recon_loss = mseloss(re_x, x)
@@ -126,4 +130,3 @@ class VAE_mask(torch.nn.Module):
     #     predicted_mask = self.mask_predictor(z)
     #     re_x = self.decoder(torch.cat([z, predicted_mask], dim=1))
     #     return re_x,z,mu,sigma,predicted_mask
-
